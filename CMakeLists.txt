@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.16)
+project(cpp_concurrency_prep CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Threads REQUIRED)
+
+option(TSAN "Build with ThreadSanitizer" OFF)
+if(TSAN)
+  add_compile_options(-fsanitize=thread -g)
+  add_link_options(-fsanitize=thread)
+endif()
+
+# Every .cpp in these folders becomes its own executable, named folder_file.
+foreach(dir concepts problems/level1 problems/level2 problems/level3 debugging)
+  file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/${dir}/*.cpp")
+  string(REPLACE "/" "_" prefix ${dir})
+  foreach(src ${SOURCES})
+    get_filename_component(name ${src} NAME_WE)
+    add_executable(${prefix}_${name} ${src})
+    target_link_libraries(${prefix}_${name} Threads::Threads)
+  endforeach()
+endforeach()

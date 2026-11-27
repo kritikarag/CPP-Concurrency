@@ -1,0 +1,28 @@
+name: build-and-test
+on: [push, pull_request]
+jobs:
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gdb (for stack traces if a test hangs)
+        run: sudo apt-get install -y -q gdb > /dev/null
+      - name: Build with ThreadSanitizer
+        run: cmake -B build -DTSAN=ON && cmake --build build -j
+      - name: Run solutions (concepts and problems; debugging drills are intentionally buggy)
+        shell: bash
+        run: |
+          for exe in build/concepts_* build/problems_*; do
+            [[ "$exe" == *02_race_condition ]] && continue   # races on purpose
+            echo "== $exe"
+            "$exe" > out.txt 2>&1 &
+            pid=$!
+            for i in $(seq 1 120); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            if kill -0 $pid 2>/dev/null; then
+              echo "HUNG: $exe — stack of every thread:"
+              cat out.txt
+              sudo gdb -p $pid -batch -ex "thread apply all bt" 2>/dev/null | grep -E "^Thread|^#" | head -150
+              kill -9 $pid; exit 1
+            fi
+            wait $pid || { echo "FAILED: $exe"; cat out.txt; exit 1; }
+          done
